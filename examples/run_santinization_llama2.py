@@ -1,21 +1,22 @@
 import os.path
 import os
 import sys
+
 sys.path.append('..')
 import json
 import random
 from easyeditor import (
-    FTHyperParams, 
-    IKEHyperParams, 
-    KNHyperParams, 
-    MEMITHyperParams, 
-    ROMEHyperParams, 
+    FTHyperParams,
+    IKEHyperParams,
+    KNHyperParams,
+    MEMITHyperParams,
+    ROMEHyperParams,
     LoRAHyperParams,
     MENDHyperParams,
     SERACHparams,
     SERACTrainingHparams,
     MENDTrainingHparams,
-    test_generation_quality     # fluency
+    test_generation_quality  # fluency
 )
 from easyeditor import BaseEditor
 from easyeditor.models.ike import encode_ike_facts
@@ -30,30 +31,32 @@ from easyeditor import EditTrainer, MENDTrainingHparams, SERACTrainingHparams
 
 METHOD2HPARAMS = {
     "FT": FTHyperParams,
-    "MEND": MENDTrainingHparams,            # MENDHyperParams -> MENDTrainingHparams
+    "MEND": MENDTrainingHparams,  # MENDHyperParams -> MENDTrainingHparams
     "ROME": ROMEHyperParams,
     "MEMIT": MEMITHyperParams,
-    "SERAC": SERACTrainingHparams,              # SERACHparams -> SERACTrainingHparams
+    "SERAC": SERACTrainingHparams,  # SERACHparams -> SERACTrainingHparams
     "LoRA": LoRAHyperParams,
     "IKE": IKEHyperParams
 }
 
-def print_log(message:str):
+
+def print_log(message: str):
     print(f"[{time.ctime()}] {message}")
 
+
 class Experimenter:
-    
-    default_generate_config:GenerationConfig = GenerationConfig(
-        max_new_tokens = 8
+    default_generate_config: GenerationConfig = GenerationConfig(
+        max_new_tokens=8
     )
 
-    def filter_prefix(self, prefix:str, generate:str):
+    def filter_prefix(self, prefix: str, generate: str):
         # 传入prefix和generate
         assert prefix in generate
         start_pos = generate.find(prefix)
-        return generate[start_pos+len(prefix):]
+        return generate[start_pos + len(prefix):]
 
-    def cache_train_before_editing(self, replace=False, file_name="train.cache", decode_batch_size=16, max_new_tokens=10):
+    def cache_train_before_editing(self, replace=False, file_name="train.cache", decode_batch_size=16,
+                                   max_new_tokens=10):
         if 'K_R' not in self.train_dataset:
             print_log(f"don't cache K_R ...")
             return
@@ -63,15 +66,16 @@ class Experimenter:
                 cache: dict = json.load(f)
         else:
             print_log("generating train K_R for cache ...")
-            assert self.model 
+            assert self.model
             cache = {}
-            dataset:dict = self.train_dataset["K_R"]
+            dataset: dict = self.train_dataset["K_R"]
             assert isinstance(dataset, dict)
-            ans:list = self.generate(
-                inputs=dataset["prompt"], using_editing_model=False, max_new_tokens=max_new_tokens, batch_size=decode_batch_size
+            ans: list = self.generate(
+                inputs=dataset["prompt"], using_editing_model=False, max_new_tokens=max_new_tokens,
+                batch_size=decode_batch_size
             )
             cache.update(
-                {q:self.filter_prefix(q, a) for q, a in zip(dataset["prompt"], ans)}
+                {q: self.filter_prefix(q, a) for q, a in zip(dataset["prompt"], ans)}
             )
             with open(file_name, "w") as f:
                 json.dump(cache, f)
@@ -82,10 +86,12 @@ class Experimenter:
             assert "ground_truth" in self.train_dataset["K_R"] and "target_new" in self.train_dataset["K_R"]
             for i in range(len(cache)):
                 question = self.train_dataset["K_R"]["prompt"][i]
-                self.train_dataset["K_R"]["ground_truth"][i] = self.train_dataset["K_R"]["target_new"][i] = cache[question]
+                self.train_dataset["K_R"]["ground_truth"][i] = self.train_dataset["K_R"]["target_new"][i] = cache[
+                    question]
         self.REPLACEMENT = replace
 
-    def cache_locality_before_editing(self, replace=False, file_name="locality.cache", decode_batch_size=16, max_new_tokens=10):
+    def cache_locality_before_editing(self, replace=False, file_name="locality.cache", decode_batch_size=16,
+                                      max_new_tokens=10):
         # Answer the test set's question/prompt before the formal editing begins
         """
         1. Determine if there is a cache, if so, load it directly
@@ -99,9 +105,9 @@ class Experimenter:
                 cache: dict = json.load(f)
         else:
             print_log("generating test locality for cache ...")
-            assert self.model 
+            assert self.model
             cache = {}
-            dataset:dict = self.test_dataset["locality"]
+            dataset: dict = self.test_dataset["locality"]
             assert isinstance(dataset, dict)
             # cnt = 0
             # pbar = tqdm(total=len(dataset["prompt"])//decode_batch_size+min(len(dataset["prompt"])%decode_batch_size, 1))
@@ -117,11 +123,12 @@ class Experimenter:
             #     )
             #     pbar.update(1)
             # pbar.close()
-            ans:list = self.generate(
-                inputs=dataset["prompt"], using_editing_model=False, max_new_tokens=max_new_tokens, batch_size=decode_batch_size
+            ans: list = self.generate(
+                inputs=dataset["prompt"], using_editing_model=False, max_new_tokens=max_new_tokens,
+                batch_size=decode_batch_size
             )
             cache.update(
-                {q:a for q, a in zip(dataset["prompt"], ans)}
+                {q: a for q, a in zip(dataset["prompt"], ans)}
             )
             with open(file_name, "w") as f:
                 json.dump(cache, f)
@@ -137,21 +144,22 @@ class Experimenter:
     def _LoRA_and_FT(self):
         # Step 1. Get forget_dataset and retain_dataset
         if self.args.specify_answer.lower() == "all":
-            forget_dataset:dict = self.train_dataset["K_F"]
-            retain_dataset:dict = self.train_dataset["K_R"]
+            forget_dataset: dict = self.train_dataset["K_F"]
+            retain_dataset: dict = self.train_dataset["K_R"]
             start, end = 0, len(retain_dataset["prompt"])
         else:
             answers = ["cheese", "birds", "paris", "julius caesar", "finland"]
-            assert list({i.lower():1 for i in self.train_dataset["K_F"]["ground_truth"]}.keys()) == answers, \
-                f"""{list({i.lower():1 for i in self.train_dataset["K_F"]["ground_truth"]}.keys())} != {answers}"""
+            assert list({i.lower(): 1 for i in self.train_dataset["K_F"]["ground_truth"]}.keys()) == answers, \
+                f"""{list({i.lower(): 1 for i in self.train_dataset["K_F"]["ground_truth"]}.keys())} != {answers}"""
             idx = answers.index(self.args.specify_answer.lower())
             start, end = {0: [0, 90], 1: [90, 180], 2: [180, 270], 3: [270, 360], 4: [360, 453]}[idx]
-            forget_dataset:dict = self.specify_answer_for_dataset(self.args.specify_answer, "train")
-            retain_dataset:dict = {key:self.train_dataset["K_R"][key][start:end] for key in self.train_dataset["K_R"].keys()}
+            forget_dataset: dict = self.specify_answer_for_dataset(self.args.specify_answer, "train")
+            retain_dataset: dict = {key: self.train_dataset["K_R"][key][start:end] for key in
+                                    self.train_dataset["K_R"].keys()}
 
         # Step 2. Hybrid it
-        hybrid_dataset = {"prompt":list(), "target_new":list()}
-        n_retain_per_forget = (end-start) // len(forget_dataset["prompt"])
+        hybrid_dataset = {"prompt": list(), "target_new": list()}
+        n_retain_per_forget = (end - start) // len(forget_dataset["prompt"])
         n_retain_per_forget = 1
         cur_retain_index = 0
         for i in range(len(forget_dataset["prompt"])):
@@ -159,7 +167,7 @@ class Experimenter:
                 forget_dataset["prompt"][i]
             )
             hybrid_dataset["prompt"].extend(
-                retain_dataset["prompt"][cur_retain_index:cur_retain_index+n_retain_per_forget]
+                retain_dataset["prompt"][cur_retain_index:cur_retain_index + n_retain_per_forget]
             )
 
             hybrid_dataset["target_new"].append(
@@ -198,14 +206,12 @@ class Experimenter:
         #     idx += 1
         # hybrid_dataset = _hybrid_dataset
 
-
-
         # print(hybrid_dataset)
         # assert False
 
         # Step 3. Edit
         print_log("normal editing ...")
-        _, edited_model, _ = self.editor.normal_edit(        # editor.batch_edit -> editor.normal_edit
+        _, edited_model, _ = self.editor.normal_edit(  # editor.batch_edit -> editor.normal_edit
             prompts=hybrid_dataset["prompt"],
             target_new=hybrid_dataset["target_new"]
         )
@@ -233,13 +239,15 @@ class Experimenter:
 
     def _ROME(self):
         print_log(f"start edit using ROME with the answer `{self.args.specify_answer}` ...")
-        train_data:dict = self.train_dataset["K_F"] if self.args.specify_answer.lower() == "all" else \
+        train_data: dict = self.train_dataset["K_F"] if self.args.specify_answer.lower() == "all" else \
             self.specify_answer_for_dataset(specify_answer=self.args.specify_answer, dataset_type="train")
         for idx in range(len(train_data["prompt"])):
-            prompt, target_new, subject = train_data["prompt"][idx], train_data["target_new"][idx], train_data["subject"][idx]
+            prompt, target_new, subject = train_data["prompt"][idx], train_data["target_new"][idx], \
+            train_data["subject"][idx]
             print_log(f"target_new: `{target_new}`    subject: `{subject}`    prompt: `{prompt}`")
         for idx in range(len(train_data["prompt"])):
-            prompt, target_new, subject = train_data["prompt"][idx], train_data["target_new"][idx], train_data["subject"][idx]
+            prompt, target_new, subject = train_data["prompt"][idx], train_data["target_new"][idx], \
+            train_data["subject"][idx]
             assert subject in prompt
             _, edited_model, _ = self.editor.edit(
                 prompts=[prompt],
@@ -256,7 +264,8 @@ class Experimenter:
         train_data: dict = self.train_dataset["K_F"] if self.args.specify_answer.lower() == "all" else \
             self.specify_answer_for_dataset(specify_answer=self.args.specify_answer, dataset_type="train")
         self.editor.hparams.batch_size = len(train_data['prompt'])
-        print_log(f"start edit using MEMIT with the answer `{self.args.specify_answer}`, `batch_size={self.editor.hparams.batch_size}` ...")
+        print_log(
+            f"start edit using MEMIT with the answer `{self.args.specify_answer}`, `batch_size={self.editor.hparams.batch_size}` ...")
         _, edited_model, _ = self.editor.batch_edit(
             prompts=train_data["prompt"],
             target_new=train_data["target_new"],
@@ -265,17 +274,17 @@ class Experimenter:
         self.model = self.editor.model = edited_model
         print_log("edit done!")
 
-    def _load_dataset(self, key:str):
+    def _load_dataset(self, key: str):
         assert key in ['train', 'test']
         return json.load(
             open(
-                os.path.join(self.args.data_dir, self.datasets_path[key]), 
-                'r', 
+                os.path.join(self.args.data_dir, self.datasets_path[key]),
+                'r',
                 encoding='utf-8'
             )
         )
-    
-    def _prepare_dataset_before_edit(self, key:str, template:str=None) -> Dict:
+
+    def _prepare_dataset_before_edit(self, key: str, template: str = None) -> Dict:
         # Slightly modified, as the original mixed K_F and K_R together into a unified format
         # Now they are separate, just like in the test set
         """
@@ -286,7 +295,7 @@ class Experimenter:
                     'prompt': [],
                     'ground_truth': [],
                     'target_new': []
-                }, 
+                },
                 'locality': {
                     'prompt': [],
                     'ground_truth': [],
@@ -338,17 +347,17 @@ class Experimenter:
             #                 )
             #             else:
             #                 ans[k].append(current_dataset[i][k])
-            
+
             # return
             return ans
         elif key == 'test':
             ans = {}
-            for eval_type in self._test_dataset:    # type of evaluation dataset, e.g. success, locality
-                ans[eval_type] = {                  # placeholder
-                    _:[] for _ in self._test_dataset[eval_type][0].keys()
+            for eval_type in self._test_dataset:  # type of evaluation dataset, e.g. success, locality
+                ans[eval_type] = {  # placeholder
+                    _: [] for _ in self._test_dataset[eval_type][0].keys()
                 }
                 for item in self._test_dataset[eval_type]:  # {'key1':'', 'key2':''}
-                    for k in ans[eval_type]:                # e.g., key1, key2
+                    for k in ans[eval_type]:  # e.g., key1, key2
                         if k == 'question':
                             ans[eval_type][k].append(
                                 current_template.format(item[k])
@@ -360,19 +369,20 @@ class Experimenter:
         else:
             assert False
 
-    def _prepare_dataset_for_trainer(self, answer:str, config):
+    def _prepare_dataset_for_trainer(self, answer: str, config):
         self.train_dataset_for_trainer = SanitizationTrainDataset(
-            data_dir=os.path.join(self.args.data_dir, self.datasets_path["train"]), template=self.template, specify_answers=answer,
+            data_dir=os.path.join(self.args.data_dir, self.datasets_path["train"]), template=self.template,
+            specify_answers=answer,
             config=config
         )
 
-    def specify_answer_for_dataset(self, specify_answer:str, dataset_type:str)->dict:
-        assert dataset_type.lower() in ["train","test"]
+    def specify_answer_for_dataset(self, specify_answer: str, dataset_type: str) -> dict:
+        assert dataset_type.lower() in ["train", "test"]
         if dataset_type == "train":
-            dataset:Dict = self.train_dataset["K_F"]
+            dataset: Dict = self.train_dataset["K_F"]
         else:
-            dataset:Dict = self.test_dataset["success"]  
-        ans = {_:list() for _ in dataset.keys()}
+            dataset: Dict = self.test_dataset["success"]
+        ans = {_: list() for _ in dataset.keys()}
         for idx in range(len(dataset["prompt"])):
             if (dataset["ground_truth"][idx].lower() == specify_answer) or specify_answer == 'all':
                 for _ in dataset.keys():
@@ -380,7 +390,7 @@ class Experimenter:
         assert len(ans["prompt"]) > 0
         return ans
 
-    def compare(self, generated:List, ground_truth:List)->float:
+    def compare(self, generated: List, ground_truth: List) -> float:
         assert len(generated) == len(ground_truth)
         hit = 0
         for gen, gt in zip(generated, ground_truth):
@@ -389,7 +399,7 @@ class Experimenter:
                 hit += 1
         return hit / len(generated)
 
-    def locality(self, generated:List, ground_truth:List)->float:
+    def locality(self, generated: List, ground_truth: List) -> float:
         assert len(generated) == len(ground_truth) and len(ground_truth) == len(self.test_dataset["locality"]["prompt"])
         cnt = 0
         ans = []
@@ -398,8 +408,8 @@ class Experimenter:
             assert prefix in gen, f"`{prefix}` not in `{gen}`"
             assert prefix in gt, f"`{prefix}` not in `{gt}`"
             # remove prefix
-            gen = gen[gen.find(prefix)+len(prefix):]
-            gt = gt[gt.find(prefix)+len(prefix):]
+            gen = gen[gen.find(prefix) + len(prefix):]
+            gt = gt[gt.find(prefix) + len(prefix):]
 
             correct = 0
             gen_tokens, gt_tokens = self.tokenizer([gen, gt])["input_ids"]
@@ -408,24 +418,24 @@ class Experimenter:
                     break
                 if gen_tokens[i] == gt_tokens[i]:
                     correct += 1
-            ans.append(correct/len(gt_tokens))
+            ans.append(correct / len(gt_tokens))
             print_log(f"`{gt}` V.S. `{gen}` -> {ans[-1]}")
             cnt += 1
         return sum(ans) / len(ans)
 
     def __init__(
-        self,
-        args,
-        datasets_path:Dict = {
-            'train': 'trivia_qa_train.json',
-            'test': 'trivia_qa_test.json'
-        },
-        template:str="{}",
+            self,
+            args,
+            datasets_path: Dict = {
+                'train': 'trivia_qa_train.json',
+                'test': 'trivia_qa_test.json'
+            },
+            template: str = "{}",
     ):
         assert args.editing_method in METHOD2HPARAMS, \
             f"Editing method `{args.editing_method}` is not supported. The supported methods are in `{list(METHOD2HPARAMS.keys())}`"
         self.editing_hparams = METHOD2HPARAMS[args.editing_method]
-        
+
         self.args = args
         self.datasets_path: dict = datasets_path
         self.template: str = template
@@ -447,10 +457,11 @@ class Experimenter:
         self.device: str = f"cuda:{self.hparams.device}"
 
         self.editor = BaseEditor.from_hparams(self.hparams) \
-            if args.editing_method not in ["MEND", "SERAC"] else None       # editor will not be loaded when method is serac or mend
+            if args.editing_method not in ["MEND",
+                                           "SERAC"] else None  # editor will not be loaded when method is serac or mend
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
         self.tokenizer.pad_token_id = self.tokenizer.eos_token_id
-        self.tokenizer.padding_side='left'
+        self.tokenizer.padding_side = 'left'
 
         self.model = self.editor.model if self.editor is not None else None
         self.IS_EDITED: bool = False  # don't be edited
@@ -463,7 +474,7 @@ class Experimenter:
         # self.model.config.bos_token_id = self.tokenizer.bos_token_id = 1
         # self.model.config.eos_token_id = self.tokenizer.eos_token_id = 2
 
-    def evaluate(self)->dict:
+    def evaluate(self) -> dict:
         metric = {
             "success": None,
             "locality": None,
@@ -471,7 +482,8 @@ class Experimenter:
         }
         # Step 1. evaluate success
         print_log("evaluating edit success ...")
-        eval_dataset:dict = self.specify_answer_for_dataset(specify_answer=self.args.specify_answer, dataset_type="test")
+        eval_dataset: dict = self.specify_answer_for_dataset(specify_answer=self.args.specify_answer,
+                                                             dataset_type="test")
         generated_answer = self.generate(inputs=eval_dataset["prompt"], using_editing_model=True)
         metric["success"] = self.compare(generated_answer, eval_dataset["target_new"])
         print_log(f"edit success = {metric['success']}")
@@ -483,7 +495,7 @@ class Experimenter:
         metric["locality"] = self.locality(generated_answer, self.test_dataset["locality"]["ground_truth"])
         print_log(f"locality = {metric['locality']}")
 
-        # Step 3. evaluate fluency 
+        # Step 3. evaluate fluency
         print_log("evaluating fluency ...")
         metric["fluency"] = test_generation_quality(
             model=self.model, tok=self.tokenizer, prefixes=self.test_dataset["locality"]["prompt"], max_out_len=100
@@ -493,23 +505,23 @@ class Experimenter:
         return metric
 
     def generate(
-        self, 
-        inputs: List[str],
-        using_editing_model:bool=False,
-        max_new_tokens:int=10,
-        generate_config:GenerationConfig=None,
-        batch_size: int=16
-    )->list:
+            self,
+            inputs: List[str],
+            using_editing_model: bool = False,
+            max_new_tokens: int = 10,
+            generate_config: GenerationConfig = None,
+            batch_size: int = 16
+    ) -> list:
         assert using_editing_model == self.IS_EDITED
         if generate_config is None:
             generate_config = self.default_generate_config
-        
+
         # # Step 1. Tokenizer
         # total = self.tokenizer(
         #     inputs, return_tensors='pt', padding=True,
         # )
 
-        pbar = tqdm(total=len(inputs)//batch_size+min(0, len(inputs)%batch_size))
+        pbar = tqdm(total=len(inputs) // batch_size + min(0, len(inputs) % batch_size))
         cnt = 0
         return_ans = []
         while cnt < len(inputs):
@@ -517,7 +529,7 @@ class Experimenter:
 
             # Step 1. Tokenizer
             batch = self.tokenizer(
-                inputs[cnt:cnt+batch_size], return_tensors='pt', padding=True, # max_length=100
+                inputs[cnt:cnt + batch_size], return_tensors='pt', padding=True,  # max_length=100
             )
 
             # Step 2. Generate
@@ -574,8 +586,7 @@ class Experimenter:
 
         # Step 4. evaluate the answer
         self.evaluate()
-    
-    
+
 
 # FILE_NAME = {
 #     'train': 'trivia_qa_train.json',
@@ -587,8 +598,8 @@ class Experimenter:
 #     assert key in ['train', 'test']
 #     return json.load(
 #         open(
-#             os.path.join(args.data_dir, FILE_NAME[key]), 
-#             'r', 
+#             os.path.join(args.data_dir, FILE_NAME[key]),
+#             'r',
 #             encoding='utf-8'
 #         )
 #     )
@@ -604,8 +615,10 @@ def args_parser():
     parser.add_argument('--pre_generate', action='store_true')
     return parser.parse_args()
 
+
 def check_args(args):
     assert args.specify_answer.lower() in ["all", "cheese", "birds", "paris", "julius caesar", "finland"]
+
 
 if __name__ == "__main__":
     args = args_parser()
@@ -616,78 +629,78 @@ if __name__ == "__main__":
 """
 python run_santinization_llama2.py --editing_method ROME \
     --hparams_dir ./hparams/ROME/llama-7b.yaml \
-    --data_dir ./data \
+    --data_dir ./data/sanitation \
     --specify_answer cheese
 
 python run_santinization_llama2.py --editing_method MEMIT \
     --hparams_dir ./hparams/MEMIT/llama-7b.yaml \
-    --data_dir ./data \
+    --data_dir ./data/sanitation \
     --specify_answer cheese
 
 python run_santinization_llama2.py --editing_method SERAC \
     --hparams_dir ./hparams/TRAINING/SERAC/llama-7b.yaml \
-    --data_dir ./data \
+    --data_dir ./data/sanitation \
     --specify_answer birds
 
 python run_santinization_llama2.py --editing_method MEND \
     --hparams_dir ./hparams/TRAINING/MEND/llama-7b.yaml \
-    --data_dir ./data \
+    --data_dir ./data/sanitation \
     --specify_answer cheese
 
 python run_santinization_llama2.py --editing_method FT \
     --hparams_dir ./hparams/FT/llama-7b.yaml \
-    --data_dir ./data \
+    --data_dir ./data/sanitation \
     --specify_answer "julius caesar"
 
 python run_santinization_llama2.py --editing_method LoRA \
     --hparams_dir ./hparams/LoRA/llama-7b.yaml \
-    --data_dir ./data \
+    --data_dir ./data/sanitation \
     --specify_answer cheese
 """
 
-    # assert args.editing_method in METHOD2HPARAMS, \
-    #     f"Editing method `{args.editing_method}` is not supported. The supported methods are in `{list(METHOD2HPARAMS.keys())}`"
+# assert args.editing_method in METHOD2HPARAMS, \
+#     f"Editing method `{args.editing_method}` is not supported. The supported methods are in `{list(METHOD2HPARAMS.keys())}`"
 
-    # # loading hparams
-    # editing_hparams = METHOD2HPARAMS[args.editing_method]
+# # loading hparams
+# editing_hparams = METHOD2HPARAMS[args.editing_method]
 
-    # # loading dataset
-    # test_data = load_dataset(args=args, key='test')
-    # train_data = load_dataset(args=args, key='train')
+# # loading dataset
+# test_data = load_dataset(args=args, key='test')
+# train_data = load_dataset(args=args, key='train')
 
 
-    # prompts = [test_data_['src'] for test_data_ in test_data]
-    # rephrase_prompts = [edit_data_['rephrase'] for edit_data_ in test_data]
-    # target_new = [edit_data_['alt'] for edit_data_ in test_data]
-    # locality_prompts = [edit_data_['loc'] for edit_data_ in test_data]
-    # locality_ans = [edit_data_['loc_ans'] for edit_data_ in test_data]
+# prompts = [test_data_['src'] for test_data_ in test_data]
+# rephrase_prompts = [edit_data_['rephrase'] for edit_data_ in test_data]
+# target_new = [edit_data_['alt'] for edit_data_ in test_data]
+# locality_prompts = [edit_data_['loc'] for edit_data_ in test_data]
+# locality_ans = [edit_data_['loc_ans'] for edit_data_ in test_data]
 
-    # locality_inputs = {
-    #     'neighborhood':{
-    #         'prompt': locality_prompts,
-    #         'ground_truth': locality_ans
-    #     },
-    # }
-    # subject = [edit_data_['subject'] for edit_data_ in test_data]
-    # hparams = editing_hparams.from_hparams(args.hparams_dir)
+# locality_inputs = {
+#     'neighborhood':{
+#         'prompt': locality_prompts,
+#         'ground_truth': locality_ans
+#     },
+# }
+# subject = [edit_data_['subject'] for edit_data_ in test_data]
+# hparams = editing_hparams.from_hparams(args.hparams_dir)
 
-    # if args.editing_method == 'IKE':
-    #     train_data_path = os.path.join(args.data_dir, 'zsre_mend_train_10000.json')
-    #     train_ds = ZsreDataset(train_data_path)
-    #     sentence_model = SentenceTransformer(hparams.sentence_model_name).to(f'cuda:{hparams.device}')
-    #     encode_ike_facts(sentence_model, train_ds, hparams)
-    # else:
-    #     train_ds = None
+# if args.editing_method == 'IKE':
+#     train_data_path = os.path.join(args.data_dir, 'zsre_mend_train_10000.json')
+#     train_ds = ZsreDataset(train_data_path)
+#     sentence_model = SentenceTransformer(hparams.sentence_model_name).to(f'cuda:{hparams.device}')
+#     encode_ike_facts(sentence_model, train_ds, hparams)
+# else:
+#     train_ds = None
 
-    # editor = BaseEditor.from_hparams(hparams)
-    # metrics, edited_model, _ = editor.edit(
-    #     prompts=prompts,
-    #     rephrase_prompts=rephrase_prompts,
-    #     target_new=target_new,
-    #     subject=subject,
-    #     train_ds=train_ds,
-    #     locality_inputs=locality_inputs,
-    #     keep_original_weight=True
-    # )
+# editor = BaseEditor.from_hparams(hparams)
+# metrics, edited_model, _ = editor.edit(
+#     prompts=prompts,
+#     rephrase_prompts=rephrase_prompts,
+#     target_new=target_new,
+#     subject=subject,
+#     train_ds=train_ds,
+#     locality_inputs=locality_inputs,
+#     keep_original_weight=True
+# )
 
-    # json.dump(metrics, open(os.path.join(args.metrics_save_dir, f'{args.editing_method}_results.json'), 'w'), indent=4)
+# json.dump(metrics, open(os.path.join(args.metrics_save_dir, f'{args.editing_method}_results.json'), 'w'), indent=4)

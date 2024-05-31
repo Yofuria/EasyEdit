@@ -5,6 +5,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from .logit_lens import LogitLens
+from torch.cuda.amp import autocast
 
 
 def generate_interactive(
@@ -109,6 +110,7 @@ def generate_fast(
         ]
         return txt
     batch_size = input_ids.size(0)
+    # batch_size = 16
 
     # Setup storage of fast generation with attention caches.
     # `cur_context` is used to define the range of inputs that are not yet
@@ -118,12 +120,13 @@ def generate_fast(
 
     with torch.no_grad():
         while input_ids.size(1) < max_out_len:  # while not exceeding max output length
-            model_out = model(
-                input_ids=input_ids[:, cur_context],
-                attention_mask=None if 'llama'or'baichuan' in model.name_or_path.lower() else attention_mask[:, cur_context],
-                past_key_values=past_key_values,
-                use_cache=True,
-            )
+            with autocast():
+                model_out = model(
+                    input_ids=input_ids[:, cur_context],
+                    attention_mask=None if 'llama'or'baichuan' in model.name_or_path.lower() else attention_mask[:, cur_context],
+                    past_key_values=past_key_values,
+                    use_cache=False
+                )
             logits, past_key_values = model_out.logits, model_out.past_key_values
             softmax_out = torch.nn.functional.softmax(logits[:, -1, :], dim=1)
 

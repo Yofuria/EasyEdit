@@ -25,7 +25,7 @@ os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
 
 def make_logs():
 
-    f_h, s_h = get_handler('logs', log_name='run.log')
+    f_h, s_h = get_handler('logs', log_name='ROME_sanitation.log')
     LOG.addHandler(f_h)
     LOG.addHandler(s_h)
 

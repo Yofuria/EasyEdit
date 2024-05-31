@@ -36,8 +36,8 @@ def compute_sent_metric(
         device,
         test_generation=True
 ):
-    if "llama" not in model_name:
-        raise NotImplementedError("currently only support for llama")
+    # if "llama" not in model_name.lower():
+    #     raise NotImplementedError("currently only support for llama")
 
     def get_edit_labels(ids, prompts=None):
         labels = ids.clone()
@@ -64,7 +64,8 @@ def compute_sent_metric(
         value = edit_toks[f"{key}_input_ids"]
         mask = [([True] * value.shape[-1])] * value.shape[0]
         for i in range(value.shape[0]):
-            sep_idx = list(value[i]).index(tok.convert_tokens_to_ids("</s>"))
+            # sep_idx = list(value[i]).index(tok.convert_tokens_to_ids("</s>"))
+            sep_idx = list(value[i]).index(tok.convert_tokens_to_ids(tok.eos_token))
             for j in range(sep_idx):  # 连带</s>一块mask掉
                 mask[i][j] = False
         edit_toks[key + "_q_mask"] = torch.tensor(mask).to(device)

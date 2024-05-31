@@ -1,0 +1,12 @@
+Error
+deepspeed --num_gpus=1 examples/run_santinization_llama2.py --editing_method MEND     --hparams_dir ./hparams/TRAINING/MEND/gpt2-xl.yaml     --data_dir ./data/sanitation     --specify_answer cheese
+Error
+deepspeed --num_gpus=1 examples/run_santinization_llama2.py --editing_method SERAC     --hparams_dir ./hparams/TRAINING/SERAC/gpt2-xl.yaml     --data_dir ./data/sanitation     --specify_answer birds
+
+deepspeed --num_gpus=1 examples/run_santinization_llama2.py --editing_method ROME     --hparams_dir ./hparams/ROME/gpt2-xl.yaml     --data_dir ./data/sanitation     --specify_answer cheese
+
+deepspeed --num_gpus=1 examples/run_santinization_llama2.py --editing_method MEMIT     --hparams_dir ./hparams/MEMIT/gpt2-xl.yaml     --data_dir ./data/sanitation     --specify_answer cheese
+Error
+deepspeed --num_gpus=1 examples/run_santinization_llama2.py --editing_method FT     --hparams_dir ./hparams/FT/gpt2-xl.yaml     --data_dir ./data/sanitation     --specify_answer "julius caesar"
+Error
+deepspeed --num_gpus=1 examples/run_santinization_llama2.py --editing_method LoRA     --hparams_dir ./hparams/LoRA/gpt2-xl.yaml     --data_dir ./data/sanitation     --specify_answer cheese

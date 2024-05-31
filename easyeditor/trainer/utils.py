@@ -142,6 +142,7 @@ def load_archive(path):
         # We've not passed an explicit path, but a part of the filename
         directories = ["outputs", "multirun"]
         matches = []
+        # wd = os.getcwd()
         for d in directories:
             search = os.path.join(wd, d)
             for run_dir in os.listdir(search):

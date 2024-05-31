@@ -99,10 +99,7 @@ def layer_stats(
         # from datasets import Dataset
         # raw_ds = Dataset.from_file('XXX/XXX/wikipedia-train.arrow')
         # raw_ds = {'train': raw_ds}
-        raw_ds = load_dataset(
-            ds_name,
-            dict(wikitext="wikitext-103-raw-v1", wikipedia="20200501.en")[ds_name]
-        )
+        raw_ds = load_dataset("/home/yofuria/Desktop/EasyEdit/data/wikitext-103-raw-v1")
         if hasattr(model.config, 'n_positions'):
             maxlen = model.config.n_positions
         elif hasattr(model.config, 'max_sequence_length'):

@@ -1,6 +1,9 @@
 import os.path
 import sys
-sys.path.append('..')
+
+from transformers import AutoTokenizer
+
+sys.path.append('/home/yofuria/Desktop/EasyEdit')
 import json
 import random
 from easyeditor import (
@@ -73,7 +76,7 @@ def format_consent_for_others(data):
         
         subject.append(topic)
         target_new.append(edit_data_['pos'][0] if target_sent == 0 else edit_data_['neg'][0])
-        case_template = pos_template if target_sent==0 else neg_template
+        case_template = pos_template if target_sent == 0 else neg_template
         prompts.append(case_template.format(random.choice(templates).format(edit_data_["ent"])))
         
         outer_idx = (_idx + 1) % len(data)
@@ -83,14 +86,17 @@ def format_consent_for_others(data):
         
         for idx, target in enumerate(target_list): # target： the target sentiment, pos or neg.
             all_sent_idxs += ([idx] * len(edit_data_[target]))
-            inner_sent_texts += edit_data_[target]
-            outer_sent_texts += outer_edit_data_[target]
+            inner_sent_texts += edit_data_[target]  ## now
+            outer_sent_texts += outer_edit_data_[target]  ## next
         
         all_target_idxs = [target_sent] * len(all_sent_idxs)
         metric_kwargs.append({
             "inner_q": random.choice(templates).format(topic),
-            "inner_all_qa": [random.choice(templates).format(topic) + " </s> " + answer for answer in inner_sent_texts],
-            "outer_all_qa": [random.choice(templates).format(outer_topic) + " </s> " + answer for answer in outer_sent_texts],
+            # "inner_all_qa": [random.choice(templates).format(topic) + " </s> " + answer for answer in inner_sent_texts],
+            # "outer_all_qa": [random.choice(templates).format(outer_topic) + " </s> " + answer for answer in outer_sent_texts],
+            "inner_all_qa": [random.choice(templates).format(topic) + tokenizer.eos_token + answer for answer in inner_sent_texts],
+            "outer_all_qa": [random.choice(templates).format(outer_topic) + tokenizer.eos_token + answer for answer in
+                             outer_sent_texts],
             "inner_target": all_target_idxs,
             "all_target": all_sent_idxs
         })        
@@ -107,6 +113,11 @@ if __name__ == "__main__":
     parser.add_argument('--data_dir', required=True, type=str)
     parser.add_argument('--ds_size', default=None, type=int)
     parser.add_argument('--metrics_save_dir', default='./output', type=str)
+    parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
+
+    '''
+    python examples/run_convsent_llama2.py --editing_method ROME --hparams_dir ./hparams/ROME/gpt2-xl.yaml --data_dir ./data/convsent --metrics_save_dir ./results/convsent/gpt2-xl
+    '''
 
     args = parser.parse_args()
 
@@ -131,14 +142,18 @@ if __name__ == "__main__":
 
     test_data = json.load(open(os.path.join(args.data_dir, 'blender_test.json'), 'r', encoding='utf-8'))
         
-    if args.ds_size is not None:
+    if args.ds_size is not None:  ## control test scale
         test_data = random.sample(test_data, args.ds_size)
+
+    hparams = editing_hparams.from_hparams(args.hparams_dir)
+
+    tokenizer = AutoTokenizer.from_pretrained(hparams.model_name)
     
     subject, target_new, prompts, metric_kwargs = format_consent_for_others(test_data)
     
         
         
-    hparams = editing_hparams.from_hparams(args.hparams_dir)
+
 
 
     if args.editing_method == 'IKE':

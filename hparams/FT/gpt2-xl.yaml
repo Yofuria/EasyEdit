@@ -3,8 +3,8 @@
 #   2. target_new: the standard autoregressive method, using the cross-entropy loss function
 
 alg_name: "FT"
-model_name: "./hugging_cache/gpt2-xl"
-device: 4
+model_name: "/home/yofuria/PLM/gpt2-xl"
+device: 0
 
 layers: [0]
 num_steps: 25

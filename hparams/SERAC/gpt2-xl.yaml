@@ -1,14 +1,14 @@
 # Model
-alg_name: "SERAC"
+#alg_name: "SERAC"
 archive: ./results/models/SERAC/gpt2-xl
 device: 0
-model_name: ./hugging_cache/gpt2-xl
+model_name: "/home/yofuria/PLM/gpt2-xl"
 
 model_class: GPT2LMHeadModel
-small_name: ./hugging_cache/gpt2
+small_name: "/home/yofuria/PLM/gpt2"
 tokenizer_class: GPT2Tokenizer
-tokenizer_name: ./hugging_cache/gpt2-xl
-cls_name: ./hugging_cache/distilbert-base-cased
+tokenizer_name: "/home/yofuria/PLM/gpt2-xl"
+cls_name: "/home/yofuria/PLM/distilbert-base-cased"
 cls_class: AutoModel
 inner_params: []
 model_parallel: false

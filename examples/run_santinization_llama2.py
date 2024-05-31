@@ -2,7 +2,7 @@ import os.path
 import os
 import sys
 
-sys.path.append('..')
+sys.path.append('/home/yofuria/Desktop/EasyEdit')
 import json
 import random
 from easyeditor import (
@@ -28,6 +28,19 @@ import time
 from tqdm import tqdm
 from transformers import AutoTokenizer, GenerationConfig
 from easyeditor import EditTrainer, MENDTrainingHparams, SERACTrainingHparams
+import logging
+from easyeditor.util import globals
+
+logging.basicConfig(format = '%(asctime)s - %(levelname)s - %(name)s -   %(message)s',
+                    datefmt = '%m/%d/%Y %H:%M:%S',
+                    level = logging.INFO)
+
+LOG = logging.getLogger(__name__)
+def make_logs():
+
+    f_h, s_h = globals.get_handler('logs', log_name='run.log')
+    LOG.addHandler(f_h)
+    LOG.addHandler(s_h)
 
 METHOD2HPARAMS = {
     "FT": FTHyperParams,
@@ -41,6 +54,7 @@ METHOD2HPARAMS = {
 
 
 def print_log(message: str):
+    LOG.info(message)
     print(f"[{time.ctime()}] {message}")
 
 
@@ -51,8 +65,11 @@ class Experimenter:
 
     def filter_prefix(self, prefix: str, generate: str):
         # 传入prefix和generate
-        assert prefix in generate
-        start_pos = generate.find(prefix)
+        # import pdb; pdb.set_trace()
+        prefix_com = prefix.replace(" ", "")
+        generate_com = generate.replace(" ", "")
+        assert prefix_com in generate_com
+        start_pos = generate_com.find(prefix_com)
         return generate[start_pos + len(prefix):]
 
     def cache_train_before_editing(self, replace=False, file_name="train.cache", decode_batch_size=16,
@@ -386,7 +403,7 @@ class Experimenter:
         for idx in range(len(dataset["prompt"])):
             if (dataset["ground_truth"][idx].lower() == specify_answer) or specify_answer == 'all':
                 for _ in dataset.keys():
-                    ans[_].append(dataset[_][idx])
+                    ans[_].append(dataset[_][idx])  ## only need specify_answer?
         assert len(ans["prompt"]) > 0
         return ans
 
@@ -405,11 +422,14 @@ class Experimenter:
         ans = []
         for gen, gt in zip(generated, ground_truth):
             prefix = self.test_dataset["locality"]["prompt"][cnt]
-            assert prefix in gen, f"`{prefix}` not in `{gen}`"
-            assert prefix in gt, f"`{prefix}` not in `{gt}`"
+            prefix_com = prefix.replace(" ", "")
+            gen_com = gen.replace(" ", "")
+            gt_com = gt.replace(" ", "")
+            assert prefix_com in gen_com, f"`{prefix}` not in `{gen}`"
+            assert prefix_com in gt_com, f"`{prefix}` not in `{gt}`"
             # remove prefix
-            gen = gen[gen.find(prefix) + len(prefix):]
-            gt = gt[gt.find(prefix) + len(prefix):]
+            gen = gen[gen_com.find(prefix_com) + len(prefix):]
+            gt = gt[gt_com.find(prefix_com) + len(prefix):]
 
             correct = 0
             gen_tokens, gt_tokens = self.tokenizer([gen, gt])["input_ids"]
@@ -501,7 +521,7 @@ class Experimenter:
             model=self.model, tok=self.tokenizer, prefixes=self.test_dataset["locality"]["prompt"], max_out_len=100
         )
         print_log(f"fluency = {metric['fluency']}")
-        print(metric)
+        print_log(str(metric))
         return metric
 
     def generate(
@@ -613,6 +633,7 @@ def args_parser():
     parser.add_argument('--metrics_save_dir', default='./output', type=str)
     parser.add_argument('--specify_answer', default="all", type=str)
     parser.add_argument('--pre_generate', action='store_true')
+    parser.add_argument('--local_rank', type=int, default=0, help='local rank for distributed training')
     return parser.parse_args()
 
 
@@ -621,14 +642,19 @@ def check_args(args):
 
 
 if __name__ == "__main__":
+    import nltk
+    nltk.download('punkt')
+
+    make_logs()
     args = args_parser()
     check_args(args)
     exp = Experimenter(args=args, template="Question:{}\nAnswer:")
     exp.run()
 
+## how to set specify_answer
 """
 python run_santinization_llama2.py --editing_method ROME \
-    --hparams_dir ./hparams/ROME/llama-7b.yaml \
+    --hparams_dir ./hparams/ROME/gpt2-xl.yaml \
     --data_dir ./data/sanitation \
     --specify_answer cheese
 
